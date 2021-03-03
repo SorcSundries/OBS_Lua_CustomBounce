@@ -2,7 +2,8 @@
 My Custom Bounce script written in Lua for OBS
 
 Links:
-- https://www.youtube.com/watch?v=KlfOJhld618 - In-depth youtube tutorial/explanation about script settings
+- https://www.youtube.com/watch?v=Lv3lnrGpJyA - Script sample/examples
+- https://www.youtube.com/watch?v=KlfOJhld618 - Youtube, In-depth script tutorial
 - https://www.patreon.com/SorcSundries - Patreon
 
 <b>Tip:</b> You can set a hotkey to toggle the script in OBS: <b>File -> Settings -> Hotkeys</b><br>
