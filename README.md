@@ -1,5 +1,6 @@
 # OBS_Lua_CustomBounce
-My Custom Bounce script written in Lua for OBS
+My Custom Bounce script written in Lua for OBS<br>
+<b>Note:</b> OBS may display a crash notification when closing down due to a bug in OBS itself related to code used in this script (a memory leak apparently). It's not something that I can fix but it doesn't appear to cause any problems in OBS: no loss of scene structures, script settings, etc.
 
 Links:
 - https://www.youtube.com/watch?v=Lv3lnrGpJyA - Script sample/examples
