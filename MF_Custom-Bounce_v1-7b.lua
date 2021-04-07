@@ -146,7 +146,7 @@ THIS IS A CUSTOM VERSION, it allows the user to insert an object list directly i
 
 
 -- MANUAL OBJECT LIST, IF YOU HAVE A TON OF OBJECTS YOU CAN ENTER THEM HERE! SET THE 'Use manual list' OPTION TO TRUE IF YOU USE THIS!
-local UseManualList = true
+local UseManualList = false
 local ManualList = {
 'Object Name 1',
 'Object Name 2',
