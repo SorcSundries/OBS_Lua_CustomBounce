@@ -37,6 +37,13 @@
 --v1.7
 --added scene input so we can move objects in other scenes for better organization
 
+--v1.7b
+-- this is a custom alternate version of 1.7 that allows you to enter an object list directly into the script itself, rather than
+-- manually entering each object into OBS's string input text box 1 at a time. objects must be in the format { 'name1', 'name2', ...}
+-- i.e., each object name must be surrounded by single or double quotes, with commas between each item in the list.
+-- to add objects, manually add them to the ManualList array that is in the section below the script description, following the format
+-- shown (but, obviously, delete the dummy objects in that list that are there to show the format)
+
 local obs = obslua
 local bit = require('bit')
 
@@ -132,9 +139,21 @@ Key features include Settings to...<br>
 &nbsp; -> Put a random spin on it (NON-PHYSICS is randomized, PHYSICS is speed based)<br>
 &nbsp; -> Use offsets to limit the bounce region<br>
 &nbsp; -> Set 3 different auto-off triggers and 1 auto-restart trigger<br><br>
-Code v1.7   Mike F., 2021, distributed under MIT license<br>
+Code v1.7b   Mike F., 2021, distributed under MIT license<br>
 Get updates on GitHub: <a href="https://github.com/SorcSundries/OBS_Lua_CustomBounce">GitHub</a>  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Tutorial Video: <a href="https://www.youtube.com/watch?v=KlfOJhld618">Youtube</a><br>
-This script is free but you can show your love here: <a href="https://www.patreon.com/SorcSundries">SorcSundries Patreon</a>]]
+This script is free but you can show your love here: <a href="https://www.patreon.com/SorcSundries">SorcSundries Patreon</a><br><br>
+THIS IS A CUSTOM VERSION, it allows the user to insert an object list directly into the code itself. Requires editing the code itself to work. See v1.7b update notes in the code itself for more information.]]
+
+
+-- MANUAL OBJECT LIST, IF YOU HAVE A TON OF OBJECTS YOU CAN ENTER THEM HERE! SET THE 'Use manual list' OPTION TO TRUE IF YOU USE THIS!
+local UseManualList = true
+local ManualList = {
+'Object Name 1',
+'Object Name 2',
+'Object Name 3'
+}
+-- END MANUAL OBJECT LIST
+
 
 function script_description()
 	return Description
@@ -811,8 +830,12 @@ function script_properties()
 	--	end
 
 	obs.obs_properties_add_text(props, 'SceneWithObjectsName', 'Scene with objects to bounce', obs.OBS_TEXT_DEFAULT)
-	obs.obs_properties_add_editable_list(props, 'sources', 'Objects to bounce', obs.OBS_EDITABLE_LIST_TYPE_STRINGS,nil,nil)
 	
+	if UseManualList then
+	else
+		obs.obs_properties_add_editable_list(props, 'sources', 'Objects to bounce', obs.OBS_EDITABLE_LIST_TYPE_STRINGS,nil,nil)
+	end
+
 	obs.obs_properties_add_int(props, 'StartDelayFrames', 'Staggered activation delay (Frames)', 0,300,1)
 
 	obs.obs_properties_add_int_slider(props, 'MoveSpeed', 'Move/Launch Speed (Pixels/Frame):', 1, 200, 1) -- Move speed slider
@@ -902,11 +925,18 @@ function script_update(settings)
 		source_name[i] = nil
 	end
 
-	local names = obs.obs_data_get_array(settings, 'sources')
-	ElementCount = obs.obs_data_array_count(names)
-	for i = 1,ElementCount do
-		local item = obs.obs_data_array_item(names, i-1)
-		source_name[i] = obs.obs_data_get_string(item, 'value')
+	if UseManualList then
+		ElementCount = #ManualList
+		for i = 1,#ManualList do
+			source_name[i] = ManualList[i]
+		end
+	else
+		local names = obs.obs_data_get_array(settings, 'sources')
+		ElementCount = obs.obs_data_array_count(names)
+		for i = 1,ElementCount do
+			local item = obs.obs_data_array_item(names, i-1)
+			source_name[i] = obs.obs_data_get_string(item, 'value')
+		end
 	end
 	-- END LIST IMPLEMENTATION
 	SceneWithObjectsName = obs.obs_data_get_string(settings, 'SceneWithObjectsName')
