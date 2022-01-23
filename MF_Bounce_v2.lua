@@ -817,7 +817,7 @@ function script_properties()
 
 	obs.obs_properties_add_bool(props, 'ApplyPhysics', 'PHYSICS: Apply Physics') -- apply physics to bounce and eventually come to rest			
 	obs.obs_properties_add_float_slider(props, 'Physics_Gravity', 'PHYSICS: Gravity (Pixels/Frame)', 0,10,0.1) -- gravity slider
-	obs.obs_properties_add_float_slider(props, 'Physics_AirDrag', 'PHYSICS: Air Drag (% Spd Red./Frame)',0,0.2,0.01) -- air drag slider
+	obs.obs_properties_add_float_slider(props, 'Physics_AirDrag', 'PHYSICS: Air Drag (% Spd Red./Frame)',0,0.2,0.001) -- air drag slider
 	obs.obs_properties_add_float_slider(props, 'Physics_FloorFriction', 'PHYSICS: Friction (% Spd Red. on floor)',0,1,0.01) -- floor friction slider
 	obs.obs_properties_add_float_slider(props, 'Physics_Elasticity', 'PHYSICS: Elasticity (% Spd kept/bounce)',0,1.2,0.05) -- floor friction slider
 	obs.obs_properties_add_bool(props, 'Physics_RestingPlaceIsNewHome', 'PHYSICS: Resting place is new home') -- resting place is new object location
