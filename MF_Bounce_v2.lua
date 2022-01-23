@@ -1,5 +1,5 @@
--- OBS Custom Bounce v1.7 
--- 2021, Michael Frish (SorcSundries@gmail.com)
+-- OBS Custom Bounce v2.0 
+-- 2021, Mike F. (SorcSundries@gmail.com)
 -- Distributed under MIT license <https://spdx.org/licenses/MIT.html>
 -- github <https://github.com/SorcSundries/OBS_Lua_CustomBounce>
 -- patreon <https://www.patreon.com/SorcSundries>
