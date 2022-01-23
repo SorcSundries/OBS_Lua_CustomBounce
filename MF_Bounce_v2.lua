@@ -2,40 +2,21 @@
 -- 2021, Michael Frish (SorcSundries@gmail.com)
 -- Distributed under MIT license <https://spdx.org/licenses/MIT.html>
 -- github <https://github.com/SorcSundries/OBS_Lua_CustomBounce>
--- youtube <https://www.youtube.com/watch?v=KlfOJhld618>
 -- patreon <https://www.patreon.com/SorcSundries>
 
--- currently causes a crash on OBS exit, explained around lines ~250. Seems there's nothing that can be done
--- about it currently.
+--v2
+-- See previous versions for changelogs. This version is a general cleanup, adding some variability options and reorganizing a bit
 
---v1.1 added...
--- bounce based on bounding box size if applicable
--- bounce at randomized angles if desired
--- added offsets to limit bouncing region
-
---v1.2 added...
--- ability to set a bounce count auto-off
--- ability to make the object fly offscreen for the final bounce
-
---v1.3 added...
--- randomized the random seed based on source name so that multiple instances of the script triggered
-	--at the same time won't be synchronized
--- added a startup delay feature so that multiple instances can be staggered
--- corrected initial direction so an off-screen object will always move toward their bounce region if outside
-
---v1.4 added...
---converted whole program to work on an array of objects by name
-
---v1.5 added...
---physics mode
-
---v1.6
---fixed the code so that it doesn't assume 0 degrees of rotation when setting the reposition
---allow you to let a physics object's resting place be it's new home, resets alignment to original and adjusts the position
---added physics re-trigger if auto-off'd by idle
-
---v1.7
---added scene input so we can move objects in other scenes for better organization
+-- MANUAL OBJECT LIST, IF YOU HAVE A TON OF OBJECTS YOU CAN ENTER THEM HERE! ---------
+-- SET THE 'Use manual list' OPTION TO TRUE IF YOU USE THIS! -------------------------
+local UseManualList = false
+local ManualList = {
+'Object Name 1',
+'Object Name 2',
+'Object Name 3'
+}
+-- END MANUAL OBJECT LIST (don't need to manually edit anything from here down) ------
+--------------------------------------------------------------------------------------
 
 local obs = obslua
 local bit = require('bit')
@@ -47,7 +28,7 @@ local OBS_ALIGN_TOP = 4
 local OBS_ALIGN_BOTTOM = 8
 
 -- tweaks & debug
-local HotkeyName = 'MF Toggle Bounce' -- change this to set a custom name for the hotkey, in case you use multiple instances
+local HotkeyName = 'MF_Bounce_v2' -- change this to set a custom name for the hotkey, in case you use multiple instances
 local DoScriptLogging = false
 local Phys_X_Stopped_Threshold = 0.75 -- if X speed is under this amount then set to zero and toggle the x-at-rest flag
 local ToggleTimeoutLength = 10 -- length in frames of timeout for the toggle script, to prevent rapid activation/deactivation
@@ -56,8 +37,11 @@ local ToggleTimeoutLength = 10 -- length in frames of timeout for the toggle scr
 local ApplyPhysics = false
 local Physics_RestingPlaceIsNewHome = false
 
-local StartDelayFrames = 0 -- number of frames to delay before starting, in case we want to create a flow
+local StartDelayFrames = 0 -- number of frames to delay before starting and between each object, in case we want to create a flow
+local StartDelayVariance = 0
+local ObjectsToTossPerDelay = 1
 local MoveSpeed = 6 -- speed of movement of source, pixels per frame
+local MoveSpeedVariance = 0
 local MinMoveAngle = 30 -- minimum movement angle
 local MaxMoveAngle = 60 -- maximum movement angle
 
@@ -99,6 +83,7 @@ local Moving = {} -- whether or not to do the movement
 local CurrentMoveAngle = {} --start with 45 degrees so that code doesn't error if changing the speed before turning on
 local XMoveSpeed = {}
 local YMoveSpeed = {}
+local MoveSpeedVar = {} --holds the move speed variance, which re-rolls every time the script is updated
 local CurrRotSpeed = {} -- the current rotation speed!
 local moving_down = {} -- if true the scene item is currently being moved down, otherwise up
 local moving_right = {} -- if true the scene item is currently being moved right, otherwise left
@@ -124,16 +109,9 @@ local scene_item = {} -- scene items to be moved
 
 local hotkey_id = obs.OBS_INVALID_HOTKEY_ID -- the hotkey assigned to toggle_bounce in OBS's hotkey config
 
-local Description = [[Bounce multiple sources (by name) around their scene<br><br>
-Key features include Settings to...<br>
-&nbsp; -> Set a staggered startup delay for multiple objects<br>
-&nbsp; -> Apply physics to the bouncing with multiple physics settings<br>
-&nbsp; -> Choose movement angle ranges and initial direction<br>
-&nbsp; -> Put a random spin on it (NON-PHYSICS is randomized, PHYSICS is speed based)<br>
-&nbsp; -> Use offsets to limit the bounce region<br>
-&nbsp; -> Set 3 different auto-off triggers and 1 auto-restart trigger<br><br>
-Code v1.7   Mike F., 2021, distributed under MIT license<br>
-Get updates on GitHub: <a href="https://github.com/SorcSundries/OBS_Lua_CustomBounce">GitHub</a>  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Tutorial Video: <a href="https://www.youtube.com/watch?v=KlfOJhld618">Youtube</a><br>
+local Description = [[Bounce multiple sources by name around their scene<br><br>
+Code v2 &nbsp;&nbsp;&nbsp;  Mike F., 2021, distributed under MIT license<br>
+Get updates on GitHub: <a href="https://github.com/SorcSundries/OBS_Lua_CustomBounce">GitHub</a><br>
 This script is free but you can show your love here: <a href="https://www.patreon.com/SorcSundries">SorcSundries Patreon</a>]]
 
 function script_description()
@@ -283,7 +261,11 @@ local function find_scene_items()
 end
 
 function change_rot_speed(i)
-	CurrRotSpeed[i] = ((math.random() * RotSpeed * 2) - RotSpeed) / 10
+	if ApplyPhysics == true then
+		CurrRotSpeed[i] = RotSpeed * ((math.random() * 1) + 0.5) -- get initial rot speed of 0.5-1.5x the setting
+	else
+		CurrRotSpeed[i] = ((math.random() * RotSpeed * 2) - RotSpeed) / 10
+	end
 end
 function change_move_angle(i)
 	CurrentMoveAngle[i] = (math.random() * (math.max(MaxMoveAngle,MinMoveAngle) - math.min(MaxMoveAngle,MinMoveAngle))) + math.min(MaxMoveAngle,MinMoveAngle)
@@ -291,8 +273,8 @@ function change_move_angle(i)
 end
 function change_move_speed(i)
 	if CurrentMoveAngle[i] == nil then return end --don't run if we don't have a current move angle'
-	YMoveSpeed[i] = math.sin(CurrentMoveAngle[i] * (math.pi / 180)) * MoveSpeed
-	XMoveSpeed[i] = math.cos(CurrentMoveAngle[i] * (math.pi / 180)) * MoveSpeed
+	YMoveSpeed[i] = math.sin(CurrentMoveAngle[i] * (math.pi / 180)) * math.max(MoveSpeed+MoveSpeedVar[i],0)
+	XMoveSpeed[i] = math.cos(CurrentMoveAngle[i] * (math.pi / 180)) * math.max(MoveSpeed+MoveSpeedVar[i],0)
 end
 
 function toggle()
@@ -353,6 +335,8 @@ function toggle()
 
 			local RandFirstDir = math.random(4) --for random initial direction spread used below, only do this once so that each piece has a unique direction
 
+			local DelayVar = 0 -- variable to hold delay variance which is re-randomized after each set of objects has their timing set
+			local TotalDelay = -StartDelayFrames -- initialize at -delay, and increment by the delay increment amount after each set of objects has their timing set
 			for i = 1,ElementCount do --for each bouncing element...
 
 				--set the bounds at bounce start
@@ -489,8 +473,15 @@ function toggle()
 				--end set initial move direction
 
 				BounceCount[i] = 0
-				DelayTimer[i] = StartDelayFrames * (i-1) --stagger the delay by (i * delay frames) for each subsequent object
-			
+				
+				-- setup the launch groups timer delay, these count down to 0 each frame after the script toggles to 'on'
+				-- DelayTimer[i] = StartDelayFrames * (i-1) --stagger the delay by (i * delay frames) for each subsequent object (original)
+				if (i-1) % ObjectsToTossPerDelay == 0 then --if we have arrived at the next 'set' of objects to launch
+					TotalDelay = TotalDelay + StartDelayFrames
+					DelayVar = math.random(-StartDelayVariance,StartDelayVariance)
+				end
+				DelayTimer[i] = math.max(TotalDelay + DelayVar,0) --no less than 0 though
+
 				if ApplyPhysics then
 					Physics_Stopped_XMotion[i] = false
 					Physics_Stopped_YMotion[i] = false
@@ -597,9 +588,9 @@ function move_scene_item_physics(scene_item, i)
 	if not (Physics_Stopped_XMotion[i] and Physics_Stopped_YMotion[i]) then
 		if Rotating then
 			if moving_right[i] then
-				next_rot = obs.obs_sceneitem_get_rot(scene_item) + (RotSpeed * (XMoveSpeed[i] / MoveSpeed) / 5)
+				next_rot = obs.obs_sceneitem_get_rot(scene_item) + (CurrRotSpeed[i] * (XMoveSpeed[i] / math.max(MoveSpeed+MoveSpeedVar[i],0)) / 5)
 			else
-				next_rot = obs.obs_sceneitem_get_rot(scene_item) - (RotSpeed * (XMoveSpeed[i] / MoveSpeed) / 5)
+				next_rot = obs.obs_sceneitem_get_rot(scene_item) - (CurrRotSpeed[i] * (XMoveSpeed[i] / math.max(MoveSpeed+MoveSpeedVar[i],0)) / 5)
 			end
 			if next_rot > 360 then
 				next_rot = next_rot - 360
@@ -811,16 +802,23 @@ function script_properties()
 	--	end
 
 	obs.obs_properties_add_text(props, 'SceneWithObjectsName', 'Scene with objects to bounce', obs.OBS_TEXT_DEFAULT)
-	obs.obs_properties_add_editable_list(props, 'sources', 'Objects to bounce', obs.OBS_EDITABLE_LIST_TYPE_STRINGS,nil,nil)
 	
-	obs.obs_properties_add_int(props, 'StartDelayFrames', 'Staggered activation delay (Frames)', 0,300,1)
+	if UseManualList then
+	else
+		obs.obs_properties_add_editable_list(props, 'sources', 'Objects to bounce', obs.OBS_EDITABLE_LIST_TYPE_STRINGS,nil,nil)
+	end
 
-	obs.obs_properties_add_int_slider(props, 'MoveSpeed', 'Move/Launch Speed (Pixels/Frame):', 1, 200, 1) -- Move speed slider
+	obs.obs_properties_add_int(props, 'StartDelayFrames', 'Staggered activation delay (Frames)', 0,1800,1)
+	obs.obs_properties_add_int(props, 'StartDelayVariance', 'Staggered activation Variance', 0,1800,1)
+	obs.obs_properties_add_int(props, 'ObjectsToTossPerDelay', 'Count of Objects to Launch per delay', 1,100,1)
+
+	obs.obs_properties_add_int_slider(props, 'MoveSpeed', 'Move/Launch Speed (Pixels/Frame):', 0, 200, 1) -- Move speed slider
+	obs.obs_properties_add_int_slider(props, 'MoveSpeedVariance', 'Move/Launch Speed Variance:', 0, 100, 1) -- Move speed variance slider
 
 	obs.obs_properties_add_bool(props, 'ApplyPhysics', 'PHYSICS: Apply Physics') -- apply physics to bounce and eventually come to rest			
 	obs.obs_properties_add_float_slider(props, 'Physics_Gravity', 'PHYSICS: Gravity (Pixels/Frame)', 0,10,0.1) -- gravity slider
 	obs.obs_properties_add_float_slider(props, 'Physics_AirDrag', 'PHYSICS: Air Drag (% Spd Red./Frame)',0,0.2,0.01) -- air drag slider
-	obs.obs_properties_add_float_slider(props, 'Physics_FloorFriction', 'PHYSICS: Friction (% Spd Red. on floor)',0,0.5,0.01) -- floor friction slider
+	obs.obs_properties_add_float_slider(props, 'Physics_FloorFriction', 'PHYSICS: Friction (% Spd Red. on floor)',0,1,0.01) -- floor friction slider
 	obs.obs_properties_add_float_slider(props, 'Physics_Elasticity', 'PHYSICS: Elasticity (% Spd kept/bounce)',0,1.2,0.05) -- floor friction slider
 	obs.obs_properties_add_bool(props, 'Physics_RestingPlaceIsNewHome', 'PHYSICS: Resting place is new home') -- resting place is new object location
 
@@ -854,7 +852,7 @@ function script_properties()
 	obs.obs_properties_add_int_slider(props, 'AutoOffTime', 'Auto-off time (Seconds):', 30, 1800, 30) -- Auto-off-time, time until auto-off triggers
 
 	obs.obs_properties_add_bool(props, 'AutoOffBounce', 'NON-PHYSICS: Auto-off after X bounces') -- toggles the auto-off bounce limit
-	obs.obs_properties_add_int(props, 'AutoOffBounceLimit', 'NON-PHYSICS: Auto-off bounce amount', 1,1000,1)
+	obs.obs_properties_add_int(props, 'AutoOffBounceLimit', 'NON-PHYSICS: Auto-off bounce amount', 0,1000,1)
 	obs.obs_properties_add_bool(props, 'FinalBounceIsOffscreen', 'NON-PHYSICS: Final bounce is offscreen') -- toggles the last bounce being offscreen
 	
 	obs.obs_properties_add_bool(props, 'Physics_AutoOff', 'PHYSICS: Auto-off after inert time') -- automatically toggles off after all objects are inert for some time
@@ -865,8 +863,11 @@ end
 
 function script_defaults(settings)
 	obs.obs_data_set_default_int(settings, 'StartDelayFrames', StartDelayFrames)
+	obs.obs_data_set_default_int(settings, 'StartDelayVariance', StartDelayVariance)
+	obs.obs_data_set_default_int(settings, 'ObjectsToTossPerDelay', ObjectsToTossPerDelay)
 
 	obs.obs_data_set_default_int(settings, 'MoveSpeed', MoveSpeed)
+	obs.obs_data_set_default_int(settings, 'MoveSpeedVariance', MoveSpeedVariance)
 
 	obs.obs_data_set_default_bool(settings, 'ApplyPhysics', ApplyPhysics)
 	obs.obs_data_set_default_double(settings, 'Physics_Gravity', Physics_Gravity)
@@ -902,17 +903,27 @@ function script_update(settings)
 		source_name[i] = nil
 	end
 
-	local names = obs.obs_data_get_array(settings, 'sources')
-	ElementCount = obs.obs_data_array_count(names)
-	for i = 1,ElementCount do
-		local item = obs.obs_data_array_item(names, i-1)
-		source_name[i] = obs.obs_data_get_string(item, 'value')
+	if UseManualList then
+		ElementCount = #ManualList
+		for i = 1,#ManualList do
+			source_name[i] = ManualList[i]
+		end
+	else
+		local names = obs.obs_data_get_array(settings, 'sources')
+		ElementCount = obs.obs_data_array_count(names)
+		for i = 1,ElementCount do
+			local item = obs.obs_data_array_item(names, i-1)
+			source_name[i] = obs.obs_data_get_string(item, 'value')
+		end
 	end
 	-- END LIST IMPLEMENTATION
 	SceneWithObjectsName = obs.obs_data_get_string(settings, 'SceneWithObjectsName')
 
 	StartDelayFrames = obs.obs_data_get_int(settings, 'StartDelayFrames')
+	StartDelayVariance = obs.obs_data_get_int(settings, 'StartDelayVariance')
+	ObjectsToTossPerDelay = obs.obs_data_get_int(settings, 'ObjectsToTossPerDelay')
 	MoveSpeed = obs.obs_data_get_int(settings, 'MoveSpeed')
+	MoveSpeedVariance = obs.obs_data_get_int(settings, 'MoveSpeedVariance')
 
 	ApplyPhysics = obs.obs_data_get_bool(settings, 'ApplyPhysics')
 	Physics_Gravity = obs.obs_data_get_double(settings, 'Physics_Gravity')
@@ -944,6 +955,7 @@ function script_update(settings)
 	Physics_AutoRestart = obs.obs_data_get_bool(settings, 'Physics_AutoRestart')
 
 	for i = 1,ElementCount do
+		MoveSpeedVar[i] = math.random(-MoveSpeedVariance,MoveSpeedVariance)
 		change_move_speed(i)
 	end
 end
