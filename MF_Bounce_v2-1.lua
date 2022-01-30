@@ -1,11 +1,8 @@
--- OBS Custom Bounce v2.0 
--- 2021, Mike F. (SorcSundries@gmail.com)
+-- OBS Custom Bounce v2.1 
+-- 2021-2022, Michael Frish (SorcSundries@gmail.com)
 -- Distributed under MIT license <https://spdx.org/licenses/MIT.html>
 -- github <https://github.com/SorcSundries/OBS_Lua_CustomBounce>
 -- patreon <https://www.patreon.com/SorcSundries>
-
---v2
--- See previous versions for changelogs. This version is a general cleanup, adding some variability options and reorganizing a bit
 
 -- MANUAL OBJECT LIST, IF YOU HAVE A TON OF OBJECTS YOU CAN ENTER THEM HERE! ---------
 -- SET THE 'Use manual list' OPTION TO TRUE IF YOU USE THIS! -------------------------
@@ -320,19 +317,9 @@ function toggle()
 		end
 		if AllTrue then
 			
-			-- change the RNG, based on the source name. 2 sources with the exact same name will have matching
-			-- RNG but 2 sources can't have the same name. the seed is re-randomized based on the sequence of
-			-- previous letters so this should be pretty random and names containing the same combination of
-			-- letters in different orders will have different seeds (ex: "image 01" and "image 10")
-			local num = 0
-			local newseed = 0
-			for i = 1, string.len(source_name[1]) do
-				num = string.byte(string.sub(source_name[1], i, i))
-				if i == 1 then math.randomseed(num + os.time()) end
-				newseed = math.random(0,1000000000) + num
-				math.randomseed(newseed)
-			end
-
+			-- Set RNG based on OS time, changes every second
+			math.randomseed(os.time())
+			
 			local RandFirstDir = math.random(4) --for random initial direction spread used below, only do this once so that each piece has a unique direction
 
 			local DelayVar = 0 -- variable to hold delay variance which is re-randomized after each set of objects has their timing set
@@ -423,6 +410,7 @@ function toggle()
 				obs.obs_sceneitem_set_pos(scene_item[i], reposition) --reposition based on original alignment so that we haven't moved
 				--end reposition
 
+				MoveSpeedVar[i] = math.random(-MoveSpeedVariance,MoveSpeedVariance) --set random initial speed variation per object
 				change_rot_speed(i) -- set an initial current rotation speed in case we want to rotate
 				change_move_angle(i) -- set an iniital current movement angle in case we want to move at an angle
 
@@ -953,11 +941,6 @@ function script_update(settings)
 	Physics_AutoOff = obs.obs_data_get_bool(settings, 'Physics_AutoOff')
 	Physics_AutoOffAfterRestTime = obs.obs_data_get_int(settings, 'Physics_AutoOffAfterRestTime')
 	Physics_AutoRestart = obs.obs_data_get_bool(settings, 'Physics_AutoRestart')
-
-	for i = 1,ElementCount do
-		MoveSpeedVar[i] = math.random(-MoveSpeedVariance,MoveSpeedVariance)
-		change_move_speed(i)
-	end
 end
 
 function script_load(settings)
