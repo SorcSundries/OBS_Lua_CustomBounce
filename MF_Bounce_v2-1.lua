@@ -1,11 +1,8 @@
--- OBS Custom Bounce v1.7 
--- 2021, Michael Frish (SorcSundries@gmail.com)
+-- OBS Custom Bounce v2.1 
+-- 2021-2022, Michael Frish (SorcSundries@gmail.com)
 -- Distributed under MIT license <https://spdx.org/licenses/MIT.html>
 -- github <https://github.com/SorcSundries/OBS_Lua_CustomBounce>
 -- patreon <https://www.patreon.com/SorcSundries>
-
---v2
--- See previous versions for changelogs. This version is a general cleanup, adding some variability options and reorganizing a bit
 
 -- MANUAL OBJECT LIST, IF YOU HAVE A TON OF OBJECTS YOU CAN ENTER THEM HERE! ---------
 -- SET THE 'Use manual list' OPTION TO TRUE IF YOU USE THIS! -------------------------
